@@ -1,0 +1,324 @@
+{
+  "name": "Automated BI & Data Quality Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 13
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "26284900-f72e-456b-aca4-54437c916e82",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1tJgLzJ-W5tDhb9izcMuU1fEaTXAN_0B1vKteaj3UF3k",
+          "mode": "list",
+          "cachedResultName": "Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1tJgLzJ-W5tDhb9izcMuU1fEaTXAN_0B1vKteaj3UF3k/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1579162554,
+          "mode": "list",
+          "cachedResultName": "Potential_Customers",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1tJgLzJ-W5tDhb9izcMuU1fEaTXAN_0B1vKteaj3UF3k/edit#gid=1579162554"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        208,
+        0
+      ],
+      "id": "e942f8d9-af67-4352-a090-207213efef64",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VAgeFwuSGf7pf0ru",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "16637685-5d1e-4cae-87b9-54641caf796d",
+              "name": "customer_id",
+              "value": "={{ $json.customer_id }}",
+              "type": "string"
+            },
+            {
+              "id": "47ac4c6a-e0ee-4345-8cf8-dfae4f0805d0",
+              "name": "customer_name",
+              "value": "={{ $json.customer_name }}",
+              "type": "string"
+            },
+            {
+              "id": "5c3a8f98-4478-4188-908f-99415e0a0247",
+              "name": "email",
+              "value": "={{ $json.email }}",
+              "type": "string"
+            },
+            {
+              "id": "17e9bbc9-5fb0-4c70-ac5f-63963d09c4c3",
+              "name": "region",
+              "value": "={{ $json.region_clean }}",
+              "type": "string"
+            },
+            {
+              "id": "ee4491b5-02b0-43c1-9bd0-aebd37855b41",
+              "name": "signup_date",
+              "value": "={{ $json.signup_date }}",
+              "type": "string"
+            },
+            {
+              "id": "0b642b29-7ad1-4cd0-8163-89bb0de643a2",
+              "name": "lead_source",
+              "value": "={{ $json.lead_source_clean }}",
+              "type": "string"
+            },
+            {
+              "id": "8fce5804-fd59-42a3-95cf-8f3decd5b304",
+              "name": "estimated_value",
+              "value": "={{ $json.estimated_value }}",
+              "type": "number"
+            },
+            {
+              "id": "15d1c827-07d5-4d9f-ab1a-c76de1b3147b",
+              "name": "sales_stage",
+              "value": "={{ $json.sales_stage_clean }}",
+              "type": "string"
+            },
+            {
+              "id": "3c30831c-4995-4fc7-9500-26bc9a5e4a4d",
+              "name": "sales_rep",
+              "value": "={{ $json.sales_rep_clean }}",
+              "type": "string"
+            },
+            {
+              "id": "f3837a1e-e5c6-4226-964f-5c403718280e",
+              "name": "last_contacted_date",
+              "value": "={{ $json.last_contacted_date }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        416,
+        0
+      ],
+      "id": "75416495-0e2d-46c3-87fa-2026913f4349",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all cleaned rows\nconst rows = items.map(item => item.json);\n\n// Total leads\nconst totalLeads = rows.length;\n\n// Total pipeline value\nconst totalPipelineValue = rows.reduce(\n  (sum, r) => sum + (r.estimated_value || 0),\n  0\n);\n\n// Leads by sales stage\nconst leadsByStage = {};\nrows.forEach(r => {\n  const stage = r.sales_stage || 'UNKNOWN';\n  leadsByStage[stage] = (leadsByStage[stage] || 0) + 1;\n});\n\n// Pipeline value by region\nconst valueByRegion = {};\nrows.forEach(r => {\n  const region = r.region || 'UNKNOWN';\n  valueByRegion[region] =\n    (valueByRegion[region] || 0) + (r.estimated_value || 0);\n});\n\n// Average deal value\nconst avgDealValue =\n  totalLeads > 0 ? totalPipelineValue / totalLeads : 0;\n\n// Conversion rate\nconst convertedLeads = leadsByStage['CONVERTED'] || 0;\nconst conversionRate =\n  totalLeads > 0 ? (convertedLeads / totalLeads) * 100 : 0;\n\n// Final KPI output\nreturn [\n  {\n    json: {\n      total_leads: totalLeads,\n      total_pipeline_value: totalPipelineValue,\n      average_deal_value: Math.round(avgDealValue),\n      conversion_rate_percent: Number(conversionRate.toFixed(2)),\n      leads_by_stage: leadsByStage,\n      pipeline_value_by_region: valueByRegion\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        0
+      ],
+      "id": "7c330ecf-9bf7-4624-9bf1-611e267577f8",
+      "name": "KPI Code node"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = items[0].json;\n\nconst issues = [];\n\n// Rule 1: High-value leads not contacted\nconst highValueThreshold = 30000;\nconst uncontactedHighValue = [];\n\nfor (const item of $input.all()) {\n  const r = item.json;\n  if (\n    r.estimated_value >= highValueThreshold &&\n    r.last_contacted_date === 'NOT_CONTACTED'\n  ) {\n    uncontactedHighValue.push({\n      customer: r.sales_rep,\n      value: r.estimated_value,\n      region: r.region,\n    });\n  }\n}\n\nif (uncontactedHighValue.length > 0) {\n  issues.push({\n    type: 'HIGH_VALUE_NOT_CONTACTED',\n    count: uncontactedHighValue.length,\n    details: uncontactedHighValue,\n  });\n}\n\n// Rule 2: Conversion rate too low\nif (data.conversion_rate_percent < 5) {\n  issues.push({\n    type: 'LOW_CONVERSION_RATE',\n    value: data.conversion_rate_percent,\n  });\n}\n\nreturn [\n  {\n    json: {\n      issue_count: issues.length,\n      issues: issues,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        0
+      ],
+      "id": "e1527e6b-8d1c-418d-9717-9e83625cc706",
+      "name": "Data Quality Code"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1747i81i31VfsZNIig6ojppMPuf4nfb0W9DJrlBgggDY",
+          "mode": "list",
+          "cachedResultName": "dashboard_metrics",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1747i81i31VfsZNIig6ojppMPuf4nfb0W9DJrlBgggDY/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1747i81i31VfsZNIig6ojppMPuf4nfb0W9DJrlBgggDY/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ new Date().toISOString().slice(0,10) }}",
+            "total_pipeline_value": "={{ $items(\"KPI Code node\")[0].json.total_pipeline_value }}\n",
+            "total_leads": "={{ $items(\"KPI Code node\")[0].json.total_leads }}",
+            "average_deal_value": "={{ $items(\"KPI Code node\")[0].json.average_deal_value }}",
+            "\nconversion_rate": "={{ $items(\"KPI Code node\")[0].json.conversion_rate_percent }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_leads",
+              "displayName": "total_leads",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_pipeline_value",
+              "displayName": "total_pipeline_value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "average_deal_value",
+              "displayName": "average_deal_value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "\nconversion_rate",
+              "displayName": "\nconversion_rate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1008,
+        0
+      ],
+      "id": "da3ac75b-bd26-4f82-8af7-7b9d65803c23",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VAgeFwuSGf7pf0ru",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "KPI Code node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "KPI Code node": {
+      "main": [
+        [
+          {
+            "node": "Data Quality Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Data Quality Code": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "c726dcbd-f2ad-4a0d-b4de-cf25951bcd6a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "7bf08e5ee4bd8598b1b8e0134e0c6821863031e26e25af55b1b9c1ca1db8f634"
+  },
+  "id": "9P9LekaAC3uInfasTmMAr",
+  "tags": []
+}
